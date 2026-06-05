@@ -5,7 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "postinstall": "node node_modules/playwright/cli.js install chromium"
   },
   "license": "ISC",
   "devDependencies": {
