@@ -288,7 +288,9 @@ setInterval(() => {
 /* =========================
    START
 ========================= */
-app.listen(3000, () => {
-    console.log("🔥 http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`🔥 Servidor iniciado en puerto ${PORT}`);
     console.log(`⏱️ Notas se actualizarán cada ${NOTAS_AUTO_MINUTOS} minutos`);
 });
