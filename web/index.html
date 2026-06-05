@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UPAO PX</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">🎓 UPAO PX</div>
+
+        <div class="menu">
+            <button onclick="openModule('notas')">📊 Notas</button>
+            <button onclick="openModule('asistencia')">✅ Asistencia</button>
+            <button onclick="openModule('horario')">🗓️ Horario</button>
+            <button onclick="openModule('historial')">📚 Historial</button>
+            <button onclick="openModule('cuenta')">💰 Cuenta</button>
+        </div>
+    </aside>
+
+    <main class="main">
+
+        <header class="topbar">
+            <div>
+                <h1 id="title">Dashboard</h1>
+                <p id="subtitle">Visualiza tus datos académicos desde UPAO PX</p>
+            </div>
+
+            <button class="refresh" onclick="reloadCurrent()">Actualizar</button>
+        </header>
+
+        <section id="home" class="home">
+            <div class="hero">
+                <span class="badge">Sistema conectado</span>
+                <h2>Bienvenido a UPAO PX</h2>
+                <p>Consulta tus notas, asistencia, horario y datos académicos en tiempo real.</p>
+            </div>
+
+            <div class="grid">
+                <div class="card" onclick="openModule('notas')">
+                    <span>📊</span>
+                    <h3>Notas</h3>
+                    <p>EP1, Parcial, EP2, Final y subcomponentes.</p>
+                </div>
+
+                <div class="card" onclick="openModule('asistencia')">
+                    <span>✅</span>
+                    <h3>Asistencia</h3>
+                    <p>Porcentaje actualizado por curso.</p>
+                </div>
+
+                <div class="card" onclick="openModule('horario')">
+                    <span>🗓️</span>
+                    <h3>Horario</h3>
+                    <p>Clases del ciclo académico.</p>
+                </div>
+
+                <div class="card" onclick="openModule('cuenta')">
+                    <span>💰</span>
+                    <h3>Cuenta</h3>
+                    <p>Estado financiero universitario.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="view" class="view">
+            <div class="view-head">
+                <button class="back" onclick="backHome()">← Volver</button>
+                <div id="status" class="status">Selecciona un módulo.</div>
+            </div>
+
+            <div id="content" class="content"></div>
+        </section>
+
+    </main>
+
+    <script src="./app.js"></script>
+</body>
+</html>

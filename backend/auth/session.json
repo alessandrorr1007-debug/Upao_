@@ -1,0 +1,95 @@
+{
+  "cookies": [
+    {
+      "name": "JSESSIONID",
+      "value": "D9074D12B2B4ACD9A7C243591D6711C3",
+      "domain": "extensibility.upao.edu.pe",
+      "path": "/BannerExtensibility",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "JSESSIONID",
+      "value": "6F11E355CCF9785DF70447E3EB35CDFC",
+      "domain": "ssb.upao.edu.pe",
+      "path": "/StudentSelfService",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "CASTGC",
+      "value": "TGT-3121303e24f743179e0ce1a6a8263e95-login.upao.edu.pe",
+      "domain": "login.upao.edu.pe",
+      "path": "/cas",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "*",
+      "value": "71a056c96cf2fd1f988b04106eebf8462d357f5a",
+      "domain": "ssb.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "*",
+      "value": "dad8f26b08fb5c3fc291a7ff08ea6dcb1af65e73",
+      "domain": "login.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": ".AspNetCore.Antiforgery.bdS86ZjRdRk",
+      "value": "CfDJ8HplzBVWQUVCqX2eOrkpbJ4CynMYz01-wM3298xveBUpvvOrIhmJDPat07ZA8l55szlc_V8qScZxxXv5fb4G6q5O6d1IuvaM3FnyTmBh34va4JGNzxmgnsaZLPjre4NUCDfAfLXvHEnsa-AtwmHLobA",
+      "domain": "upaosso.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "commonAuthId",
+      "value": "03553227-285e-4438-a1e9-edf4128bca79",
+      "domain": "login.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "*",
+      "value": "bfba3f5d672159fa23f1aa5f34e562600ca55bcb",
+      "domain": "extensibility.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "X-Oracle-BMC-LBS-Route",
+      "value": "6aae26bd804086f6a91c9b7186b51bd37ebbb17b",
+      "domain": "banner.upao.edu.pe",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
