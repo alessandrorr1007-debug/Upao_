@@ -8,7 +8,7 @@ const URL_NOTAS =
     "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=202610";
 
 const URL_ASISTENCIA =
-    "https://campusvirtual.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
+    "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
 
 function asegurarCarpetaAuth() {
     if (!fs.existsSync("./auth")) {
