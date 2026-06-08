@@ -6,7 +6,7 @@ const {
 } = require("./utils/session");
 
 const URL_ASISTENCIA =
-    "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
+    "https://campusvirtual.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
 
 const NRC_PERMITIDOS = ["3233", "5585", "5592", "5598", "5636", "6645"];
 
