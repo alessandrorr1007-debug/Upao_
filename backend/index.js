@@ -105,7 +105,7 @@ app.get("/asistencia", async (req, res) => {
     try {
         const force = req.query.force === "true";
 
-        if (!force && cacheAsistencia) {
+        if (!force && cacheAsistencia && cacheAsistencia.length > 0) {
             return res.json({
                 ok: true,
                 cached: true,
@@ -114,7 +114,7 @@ app.get("/asistencia", async (req, res) => {
             });
         }
 
-        if (actualizandoAsistencia && cacheAsistencia) {
+        if (actualizandoAsistencia && cacheAsistencia && cacheAsistencia.length > 0) {
             return res.json({
                 ok: true,
                 cached: true,
@@ -128,9 +128,20 @@ app.get("/asistencia", async (req, res) => {
 
         const data = await getAsistencia();
 
+        actualizandoAsistencia = false;
+
+        if (!data || data.length === 0) {
+            return res.json({
+                ok: true,
+                cached: !!cacheAsistencia,
+                warning: "UPAO devolvió asistencia vacía",
+                updatedAt: cacheAsistenciaTime,
+                data: cacheAsistencia || []
+            });
+        }
+
         cacheAsistencia = data;
         cacheAsistenciaTime = new Date().toISOString();
-        actualizandoAsistencia = false;
 
         res.json({
             ok: true,
@@ -141,10 +152,14 @@ app.get("/asistencia", async (req, res) => {
 
     } catch (error) {
         actualizandoAsistencia = false;
+
         res.status(500).json({
             ok: false,
             message: "Error al obtener asistencia",
-            error: error.message
+            error: error.message,
+            cached: !!cacheAsistencia,
+            updatedAt: cacheAsistenciaTime,
+            data: cacheAsistencia || []
         });
     }
 });
