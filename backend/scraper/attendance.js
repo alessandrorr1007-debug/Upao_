@@ -45,11 +45,13 @@ async function getAsistencia() {
             throw new Error("No se pudo entrar a asistencia. UPAO sigue mostrando login.");
         }
 
+        await seleccionar25PorPagina(page);
+
         console.log("📍 URL actual:", page.url());
         console.log("📄 Título:", await page.title());
 
         const bodyText = await page.locator("body").innerText().catch(() => "");
-        console.log("📝 Texto página:", bodyText.slice(0, 2000));
+        console.log("📝 Texto página:", bodyText.slice(0, 2500));
 
         const data = await extraerAsistencia(page);
         const limpio = limpiarAsistencia(data);
@@ -64,7 +66,143 @@ async function getAsistencia() {
     }
 }
 
+async function seleccionar25PorPagina(page) {
+    try {
+        console.log("🔽 Intentando cambiar Por página a 25...");
+
+        const bodyAntes = await page.locator("body").innerText().catch(() => "");
+
+        const selectores = [
+            "select",
+            "button",
+            "[role='button']",
+            ".ui-select-match",
+            ".ui-grid-pager-row-count-picker select",
+            ".ui-grid-pager-row-count-picker",
+            ".pagination-page-size",
+            ".page-size"
+        ];
+
+        for (const selector of selectores) {
+            const elementos = page.locator(selector);
+            const total = await elementos.count().catch(() => 0);
+
+            for (let i = 0; i < total; i++) {
+                const el = elementos.nth(i);
+                const texto = await el.innerText().catch(() => "");
+
+                if (
+                    texto.includes("10") ||
+                    texto.includes("25") ||
+                    texto.toLowerCase().includes("por página")
+                ) {
+                    await el.click({ timeout: 3000 }).catch(() => {});
+                    await page.waitForTimeout(1000);
+
+                    const opcion25 = page.locator("text=25").last();
+                    if (await opcion25.count() > 0) {
+                        await opcion25.click({ timeout: 5000 }).catch(() => {});
+                        await page.waitForTimeout(5000);
+                        console.log("✅ Seleccionado 25 por página");
+                        return;
+                    }
+                }
+            }
+        }
+
+        const selects = page.locator("select");
+        const totalSelects = await selects.count().catch(() => 0);
+
+        for (let i = 0; i < totalSelects; i++) {
+            const select = selects.nth(i);
+
+            try {
+                await select.selectOption("25");
+                await page.waitForTimeout(5000);
+                console.log("✅ Seleccionado 25 usando selectOption");
+                return;
+            } catch (_) {}
+
+            try {
+                await select.selectOption({ label: "25" });
+                await page.waitForTimeout(5000);
+                console.log("✅ Seleccionado 25 usando label");
+                return;
+            } catch (_) {}
+        }
+
+        const botonSiguiente = page.locator(
+            "button:has-text('›'), button:has-text('>'), [aria-label*='next' i], [title*='next' i]"
+        );
+
+        if (await botonSiguiente.count() > 0) {
+            const habilitado = await botonSiguiente.first().isEnabled().catch(() => false);
+
+            if (habilitado) {
+                console.log("➡️ No se pudo seleccionar 25. Se intentará leer página 1 y luego página 2.");
+            }
+        }
+
+        const bodyDespues = await page.locator("body").innerText().catch(() => "");
+        if (bodyAntes !== bodyDespues) {
+            console.log("✅ La página cambió después del intento de paginación");
+        } else {
+            console.log("⚠️ No se pudo cambiar a 25 automáticamente");
+        }
+
+    } catch (error) {
+        console.log("⚠️ Error intentando seleccionar 25:", error.message);
+    }
+}
+
 async function extraerAsistencia(page) {
+    const pagina1 = await extraerAsistenciaPaginaActual(page);
+
+    await irPaginaSiguienteSiExiste(page);
+
+    const pagina2 = await extraerAsistenciaPaginaActual(page);
+
+    return [...pagina1, ...pagina2];
+}
+
+async function irPaginaSiguienteSiExiste(page) {
+    try {
+        const posiblesBotones = [
+            "button:has-text('›')",
+            "button:has-text('>')",
+            "[aria-label*='next' i]",
+            "[title*='next' i]",
+            ".ui-grid-pager-next button",
+            ".ui-grid-pager-control button"
+        ];
+
+        for (const selector of posiblesBotones) {
+            const botones = page.locator(selector);
+            const total = await botones.count().catch(() => 0);
+
+            for (let i = 0; i < total; i++) {
+                const boton = botones.nth(i);
+                const habilitado = await boton.isEnabled().catch(() => false);
+
+                if (habilitado) {
+                    console.log("➡️ Pasando a la siguiente página de asistencia...");
+                    await boton.click({ timeout: 5000 }).catch(() => {});
+                    await page.waitForTimeout(6000);
+                    return true;
+                }
+            }
+        }
+
+        console.log("ℹ️ No se encontró botón de siguiente página habilitado");
+        return false;
+
+    } catch (error) {
+        console.log("⚠️ Error intentando pasar página:", error.message);
+        return false;
+    }
+}
+
+async function extraerAsistenciaPaginaActual(page) {
     return await page.evaluate(() => {
         function limpiar(texto) {
             return (texto || "").replace(/\s+/g, " ").trim();
@@ -152,13 +290,61 @@ function limpiarAsistencia(data) {
         .map(item => ({
             periodo: "202610",
             nrc: item.nrc,
-            materia: item.materia || "",
-            codigoCurso: item.codigoCurso || "",
-            seccion: item.seccion || "",
+            materia: item.materia || obtenerMateria(item),
+            codigoCurso: item.codigoCurso || obtenerCodigoCurso(item),
+            seccion: item.seccion || obtenerSeccion(item),
             curso: limpiarCurso(item),
-            asistencia: item.asistencia || "--",
+            asistencia: item.asistencia || obtenerPorcentaje(item) || "--",
+            ausencias: obtenerAusencias(item),
             raw: item.raw
         }));
+}
+
+function obtenerMateria(item) {
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+    const texto = raw.join(" ");
+
+    if (texto.includes("HUMANIDADES")) return "HUMANIDADES";
+    if (texto.includes("ING SISTEM E INTELIG ARTIFIC")) return "ING SISTEM E INTELIG ARTIFIC";
+
+    return "";
+}
+
+function obtenerCodigoCurso(item) {
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+
+    if (raw.includes("1185")) return "1185";
+    if (raw.includes("109")) return "109";
+    if (raw.includes("107")) return "107";
+    if (raw.includes("108")) return "108";
+    if (raw.includes("127")) return "127";
+    if (raw.includes("103")) return "103";
+
+    return item.codigoCurso || "";
+}
+
+function obtenerSeccion(item) {
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+
+    const seccion = raw.find(v => /^[A-Z]\d{2}$/.test(v) || /^[A-Z]\d{1}$/.test(v));
+    return seccion || item.seccion || "";
+}
+
+function obtenerPorcentaje(item) {
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+    return raw.find(v => /^\d{1,3}%$/.test(v)) || "";
+}
+
+function obtenerAusencias(item) {
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+    const porcentajeIndex = raw.findIndex(v => /^\d{1,3}%$/.test(v));
+
+    if (porcentajeIndex > 0) {
+        const posible = raw[porcentajeIndex - 1];
+        if (/^\d+$/.test(posible)) return posible;
+    }
+
+    return "";
 }
 
 function limpiarCurso(item) {
