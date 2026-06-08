@@ -15,34 +15,43 @@ async function getAsistencia() {
     let context = await crearContextoConSesion(browser);
     let page = await context.newPage();
 
-    console.log("🧾 Abriendo asistencia...");
+    try {
+        console.log("🧾 Abriendo asistencia...");
 
-    await page.goto(URL_ASISTENCIA, { waitUntil: "networkidle", timeout: 60000 });
+        await page.goto(URL_ASISTENCIA, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
 
-    if (!(await verificarSesion(page))) {
-        console.log("⚠️ Sesión expirada. Reintentando login automático...");
+        if (!(await verificarSesion(page))) {
+            console.log("⚠️ Sesión expirada. Reintentando login automático...");
+            await browser.close();
+
+            await crearSesionAutomatica();
+
+            browser = await chromium.launch({ headless: true });
+            context = await crearContextoConSesion(browser);
+            page = await context.newPage();
+
+            await page.goto(URL_ASISTENCIA, {
+                waitUntil: "domcontentloaded",
+                timeout: 60000
+            });
+        }
+
+        await page.waitForTimeout(12000);
+
+        const data = await extraerAsistencia(page);
+        const limpio = limpiarAsistencia(data);
+
+        console.log("📌 Filas leídas:", data.length);
+        console.log("📌 Asistencia encontrada:", limpio.length);
+
+        return limpio;
+
+    } finally {
         await browser.close();
-
-        await crearSesionAutomatica();
-
-        browser = await chromium.launch({ headless: true });
-        context = await crearContextoConSesion(browser);
-        page = await context.newPage();
-
-        await page.goto(URL_ASISTENCIA, { waitUntil: "networkidle", timeout: 60000 });
     }
-
-    await page.waitForTimeout(10000);
-
-    const data = await extraerAsistencia(page);
-
-    await browser.close();
-
-    const limpio = limpiarAsistencia(data);
-
-    console.log("📌 Asistencia encontrada:", limpio.length);
-
-    return limpio;
 }
 
 async function extraerAsistencia(page) {
@@ -51,7 +60,9 @@ async function extraerAsistencia(page) {
             return (texto || "").replace(/\s+/g, " ").trim();
         }
 
-        const rows = Array.from(document.querySelectorAll("table tbody tr, table tr"));
+        const rows = Array.from(
+            document.querySelectorAll("table tbody tr, table tr")
+        );
 
         return rows.map(row => {
             const cols = Array.from(row.querySelectorAll("td"))
@@ -65,6 +76,7 @@ async function extraerAsistencia(page) {
             const porcentaje = cols.find(c =>
                 c.includes("%") ||
                 c.toLowerCase().includes("asistencia") ||
+                c.toLowerCase().includes("attendance") ||
                 c.toLowerCase().includes("absence")
             ) || cols[cols.length - 1] || "";
 
