@@ -15,87 +15,92 @@ async function getAsistencia() {
     let context = await crearContextoConSesion(browser);
     let page = await context.newPage();
 
-    try {
-        console.log("✅ Abriendo asistencia...");
+    console.log("🧾 Abriendo asistencia...");
 
-        await page.goto(URL_ASISTENCIA, {
-            waitUntil: "networkidle",
-            timeout: 60000
-        });
+    await page.goto(URL_ASISTENCIA, { waitUntil: "networkidle", timeout: 60000 });
 
-        if (!(await verificarSesion(page))) {
-            console.log("⚠️ Sesión expirada. Reintentando login automático...");
+    if (!(await verificarSesion(page))) {
+        console.log("⚠️ Sesión expirada. Reintentando login automático...");
+        await browser.close();
 
-            await browser.close();
-            await crearSesionAutomatica();
+        await crearSesionAutomatica();
 
-            browser = await chromium.launch({ headless: true });
-            context = await crearContextoConSesion(browser);
-            page = await context.newPage();
+        browser = await chromium.launch({ headless: true });
+        context = await crearContextoConSesion(browser);
+        page = await context.newPage();
 
-            await page.goto(URL_ASISTENCIA, {
-                waitUntil: "networkidle",
-                timeout: 60000
-            });
+        await page.goto(URL_ASISTENCIA, { waitUntil: "networkidle", timeout: 60000 });
+    }
+
+    await page.waitForTimeout(10000);
+
+    const data = await extraerAsistencia(page);
+
+    await browser.close();
+
+    const limpio = limpiarAsistencia(data);
+
+    console.log("📌 Asistencia encontrada:", limpio.length);
+
+    return limpio;
+}
+
+async function extraerAsistencia(page) {
+    return await page.evaluate(() => {
+        function limpiar(texto) {
+            return (texto || "").replace(/\s+/g, " ").trim();
         }
 
-        await page.waitForTimeout(10000);
+        const rows = Array.from(document.querySelectorAll("table tbody tr, table tr"));
 
-        await page.waitForSelector("body", { timeout: 30000 });
+        return rows.map(row => {
+            const cols = Array.from(row.querySelectorAll("td"))
+                .map(td => limpiar(td.innerText))
+                .filter(Boolean);
 
-        const data = await page.evaluate(() => {
-            const rows = Array.from(document.querySelectorAll("table tbody tr, table tr"));
+            if (cols.length < 5) return null;
 
-            return rows.map(row => {
-                const cols = Array.from(row.querySelectorAll("td"))
-                    .map(td => td.innerText.trim())
-                    .filter(Boolean);
+            const nrc = cols.find(c => /^\d{4,6}$/.test(c)) || "";
 
-                if (cols.length < 5) return null;
+            const porcentaje = cols.find(c =>
+                c.includes("%") ||
+                c.toLowerCase().includes("asistencia") ||
+                c.toLowerCase().includes("absence")
+            ) || cols[cols.length - 1] || "";
 
-                return {
-                    term: cols[0] || "",
-                    crn: cols[1] || "",
-                    subject: cols[2] || "",
-                    courseCode: cols[3] || "",
-                    section: cols[4] || "",
-                    course: cols[5] || "",
-                    porcentaje: cols[cols.length - 1] || "",
-                    raw: cols
-                };
-            }).filter(Boolean);
-        });
-
-        console.log("📌 Asistencia encontrada:", data.length);
-
-        return limpiarAsistencia(data);
-
-    } finally {
-        await browser.close();
-    }
+            return {
+                periodo: cols.find(c => c.includes("202610")) || cols[0] || "",
+                nrc,
+                materia: cols[2] || "",
+                codigoCurso: cols[3] || "",
+                seccion: cols[4] || "",
+                curso: cols[5] || cols[cols.length - 2] || "",
+                asistencia: porcentaje,
+                raw: cols
+            };
+        }).filter(Boolean);
+    });
 }
 
 function limpiarAsistencia(data) {
     return data
         .filter(item => {
-            const term = item.term || "";
-            const nrc = item.crn || "";
-            const course = item.course || "";
+            const rawTexto = item.raw.join(" ");
+            const nrc = item.nrc || "";
 
-            if (!term.includes("202610")) return false;
+            if (!rawTexto.includes("202610")) return false;
             if (!NRC_PERMITIDOS.includes(nrc)) return false;
-            if (!course) return false;
 
             return true;
         })
         .map(item => ({
-            periodo: item.term,
-            nrc: item.crn,
-            materia: item.subject,
-            codigoCurso: item.courseCode,
-            seccion: item.section,
-            curso: item.course,
-            asistencia: item.porcentaje,
+            periodo: item.periodo,
+            nrc: item.nrc,
+            materia: item.materia,
+            codigoCurso: item.codigoCurso,
+            seccion: item.seccion,
+            curso: item.curso,
+            asistencia: item.asistencia,
             raw: item.raw
         }));
 }
