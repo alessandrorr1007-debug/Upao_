@@ -3,8 +3,12 @@ const fs = require("fs");
 require("dotenv").config();
 
 const SESSION_FILE = "./auth/session.json";
+
 const URL_NOTAS =
     "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=202610";
+
+const URL_ASISTENCIA =
+    "https://campusvirtual.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
 
 function asegurarCarpetaAuth() {
     if (!fs.existsSync("./auth")) {
@@ -22,19 +26,20 @@ async function crearSesionAutomatica() {
 
     asegurarCarpetaAuth();
 
-    const browser = await chromium.launch({
-        headless: true
-    });
-
+    const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
 
     console.log("🔐 Creando sesión automática UPAO...");
 
-    await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+    await page.goto(URL_NOTAS, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000
+    });
+
     await page.waitForTimeout(3000);
 
-    if (!page.url().includes("Account/Login")) {
+    if (!(await estaEnLogin(page))) {
         const storage = await context.storageState();
         fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
         await browser.close();
@@ -58,10 +63,14 @@ async function crearSesionAutomatica() {
 
     await page.waitForTimeout(12000);
 
-    await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+    await page.goto(URL_NOTAS, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000
+    });
+
     await page.waitForTimeout(5000);
 
-    if (page.url().includes("Account/Login")) {
+    if (await estaEnLogin(page)) {
         await browser.close();
         throw new Error("No se pudo iniciar sesión automáticamente");
     }
@@ -84,7 +93,10 @@ async function crearSesionManual() {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+    await page.goto(URL_NOTAS, {
+        waitUntil: "domcontentloaded",
+        timeout: 60000
+    });
 
     console.log("🔐 Inicia sesión manualmente.");
     console.log("Cuando ya veas tus notas, vuelve a la terminal y presiona ENTER.");
@@ -117,7 +129,25 @@ async function crearContextoConSesion(browser) {
 
 async function verificarSesion(page) {
     await page.waitForTimeout(2500);
-    return !page.url().includes("Account/Login");
+    return !(await estaEnLogin(page));
+}
+
+async function estaEnLogin(page) {
+    const url = page.url().toLowerCase();
+
+    if (url.includes("account/login")) return true;
+    if (url.includes("login.aspx")) return true;
+    if (url.includes("returnurl")) return true;
+
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    const texto = bodyText.toLowerCase();
+
+    if (texto.includes("código de verificación")) return true;
+    if (texto.includes("ingrese código de verificación")) return true;
+    if (texto.includes("iniciar sesión")) return true;
+    if (texto.includes("olvidé mi contraseña")) return true;
+
+    return false;
 }
 
 module.exports = {
@@ -125,5 +155,6 @@ module.exports = {
     crearSesionManual,
     crearContextoConSesion,
     verificarSesion,
-    URL_NOTAS
+    URL_NOTAS,
+    URL_ASISTENCIA
 };

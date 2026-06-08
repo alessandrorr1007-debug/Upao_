@@ -2,11 +2,9 @@ const { chromium } = require("playwright");
 const {
     crearSesionAutomatica,
     crearContextoConSesion,
-    verificarSesion
+    verificarSesion,
+    URL_ASISTENCIA
 } = require("./utils/session");
-
-const URL_ASISTENCIA =
-    "https://campusvirtual.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
 
 const NRC_PERMITIDOS = ["3233", "5585", "5592", "5598", "5636", "6645"];
 
@@ -24,7 +22,7 @@ async function getAsistencia() {
         });
 
         if (!(await verificarSesion(page))) {
-            console.log("⚠️ Sesión expirada. Reintentando login automático...");
+            console.log("⚠️ Sesión expirada o login detectado. Reintentando login automático...");
             await browser.close();
 
             await crearSesionAutomatica();
@@ -40,6 +38,10 @@ async function getAsistencia() {
         }
 
         await page.waitForTimeout(12000);
+
+        if (!(await verificarSesion(page))) {
+            throw new Error("No se pudo entrar a asistencia. UPAO sigue mostrando login.");
+        }
 
         console.log("📍 URL actual:", page.url());
         console.log("📄 Título:", await page.title());
