@@ -89,7 +89,6 @@ async function extraerAsistencia(page) {
             if (!nrc) continue;
 
             const porcentaje = partes.find(p => /^\d{1,3}%$/.test(p)) || "";
-            const ausenciasIndex = partes.findIndex(p => p === porcentaje);
 
             resultado.push({
                 periodo: "202610",
@@ -151,7 +150,7 @@ function limpiarAsistencia(data) {
             return true;
         })
         .map(item => ({
-            periodo: item.periodo || "202610",
+            periodo: "202610",
             nrc: item.nrc,
             materia: item.materia || "",
             codigoCurso: item.codigoCurso || "",
@@ -163,14 +162,29 @@ function limpiarAsistencia(data) {
 }
 
 function limpiarCurso(item) {
-    const texto = Array.isArray(item.raw) ? item.raw.join(" ") : item.curso || "";
+    const raw = Array.isArray(item.raw) ? item.raw : [];
+
+    const posiblesCursos = raw.filter(texto =>
+        texto.includes("METODOLOG") ||
+        texto.includes("AGILE") ||
+        texto.includes("INFRAESTRUCTURA") ||
+        texto.includes("INTEL") ||
+        texto.includes("APLICAC") ||
+        texto.includes("DEONTOLOGIA")
+    );
+
+    if (posiblesCursos.length > 0) {
+        return posiblesCursos[posiblesCursos.length - 1];
+    }
+
+    const texto = raw.join(" ");
 
     if (texto.includes("METODOLOG")) return "METODOLOG INVESTIGAC CIENTIF";
     if (texto.includes("AGILE")) return "AGILE DEVELOPMENT";
     if (texto.includes("INFRAESTRUCTURA")) return "INFRAESTRUCTURA COMO CODIGO";
-    if (texto.includes("INTEL")) return "INTEL ART, PRINCIP Y TECNIC";
     if (texto.includes("APLICAC")) return "APLICAC MOVILES PARA NEGOCIOS";
     if (texto.includes("DEONTOLOGIA")) return "DEONTOLOGIA PROFESIONAL";
+    if (texto.includes("INTEL")) return "INTEL ART, PRINCIP Y TECNIC";
 
     return item.curso || texto || "Curso";
 }
