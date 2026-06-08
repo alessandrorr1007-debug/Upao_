@@ -41,6 +41,12 @@ async function getAsistencia() {
 
         await page.waitForTimeout(12000);
 
+        console.log("📍 URL actual:", page.url());
+        console.log("📄 Título:", await page.title());
+
+        const bodyText = await page.locator("body").innerText().catch(() => "");
+        console.log("📝 Texto página:", bodyText.slice(0, 1500));
+
         const data = await extraerAsistencia(page);
         const limpio = limpiarAsistencia(data);
 
