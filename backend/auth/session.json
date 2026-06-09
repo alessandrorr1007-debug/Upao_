@@ -2,7 +2,7 @@
   "cookies": [
     {
       "name": "JSESSIONID",
-      "value": "6721922600AA2B04A14FE294502878E8",
+      "value": "56B62678949B06DF5B435888C6A64AA9",
       "domain": "extensibility.upao.edu.pe",
       "path": "/BannerExtensibility",
       "expires": -1,
@@ -12,7 +12,7 @@
     },
     {
       "name": "JSESSIONID",
-      "value": "4F7ACD9661FDFA6C04555B74A828452B",
+      "value": "F2E553C588B969B14DCC07E6D75EB1B2",
       "domain": "ssb.upao.edu.pe",
       "path": "/StudentSelfService",
       "expires": -1,
@@ -22,7 +22,7 @@
     },
     {
       "name": "CASTGC",
-      "value": "TGT-274be5ad95df43c588fb06670fda17fd-login.upao.edu.pe",
+      "value": "TGT-ed87a8e4385340dbb388f355a25495ca-login.upao.edu.pe",
       "domain": "login.upao.edu.pe",
       "path": "/cas",
       "expires": -1,
@@ -52,7 +52,7 @@
     },
     {
       "name": ".AspNetCore.Antiforgery.bdS86ZjRdRk",
-      "value": "CfDJ8HplzBVWQUVCqX2eOrkpbJ7e5ciDZkW1G17krZair7a6jee5gMMPHlpQ_SObWcV7WgkiQZHLTt95PI4nX_BX7LRKBvB3CleMAqYWv872CDQhR1SWNy-LGxEaX1vkPAunbiRGevMGsdCRd2q6yuBE-8U",
+      "value": "CfDJ8HplzBVWQUVCqX2eOrkpbJ65AwIWY-P_CayD0BbA5qiwjjX31aaxnPoqQHUonW17zoh-QG9ngWXzCpJArpvLIzi236-IYwxqO3m2_zTMnRhQwOtbCmTRL1N2OvTOM6HRcJb31SvaMvtk9SZ-7jGShTY",
       "domain": "upaosso.upao.edu.pe",
       "path": "/",
       "expires": -1,
@@ -62,7 +62,7 @@
     },
     {
       "name": "commonAuthId",
-      "value": "4d89d495-7a68-4c41-ad05-59b098b0e321",
+      "value": "eb841e8b-b579-49bc-ab12-6500e8a88f45",
       "domain": "login.upao.edu.pe",
       "path": "/",
       "expires": -1,
@@ -82,7 +82,7 @@
     },
     {
       "name": "X-Oracle-BMC-LBS-Route",
-      "value": "6aae26bd804086f6a91c9b7186b51bd37ebbb17b",
+      "value": "cb18d24524b921d0702732b93f09f063c5526b4c",
       "domain": "banner.upao.edu.pe",
       "path": "/",
       "expires": -1,

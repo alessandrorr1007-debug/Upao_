@@ -287,17 +287,23 @@ function limpiarAsistencia(data) {
             vistos.add(nrc);
             return true;
         })
-        .map(item => ({
-            periodo: "202610",
-            nrc: item.nrc,
-            materia: item.materia || obtenerMateria(item),
-            codigoCurso: item.codigoCurso || obtenerCodigoCurso(item),
-            seccion: item.seccion || obtenerSeccion(item),
-            curso: limpiarCurso(item),
-            asistencia: item.asistencia || obtenerPorcentaje(item) || "--",
-            ausencias: obtenerAusencias(item),
-            raw: item.raw
-        }));
+        .map(item => {
+    const asistencia =
+        item.asistencia || obtenerPorcentaje(item) || "--";
+
+    return {
+        periodo: "202610",
+        nrc: item.nrc,
+        materia: item.materia || obtenerMateria(item),
+        codigoCurso: item.codigoCurso || obtenerCodigoCurso(item),
+        seccion: item.seccion || obtenerSeccion(item),
+        curso: limpiarCurso(item),
+        asistencia,
+        ausencias: obtenerAusencias(item),
+        estado: obtenerEstado(asistencia),
+        raw: item.raw
+    };
+});
 }
 
 function obtenerMateria(item) {
