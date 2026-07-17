@@ -2,7 +2,7 @@
   "cookies": [
     {
       "name": "JSESSIONID",
-      "value": "56B62678949B06DF5B435888C6A64AA9",
+      "value": "D7470E717977A791D9A85EB2D2EEA0E5",
       "domain": "extensibility.upao.edu.pe",
       "path": "/BannerExtensibility",
       "expires": -1,
@@ -12,7 +12,7 @@
     },
     {
       "name": "JSESSIONID",
-      "value": "F2E553C588B969B14DCC07E6D75EB1B2",
+      "value": "A66BB844EAB96C691FE3DB890C293BCB",
       "domain": "ssb.upao.edu.pe",
       "path": "/StudentSelfService",
       "expires": -1,
@@ -22,7 +22,7 @@
     },
     {
       "name": "CASTGC",
-      "value": "TGT-ed87a8e4385340dbb388f355a25495ca-login.upao.edu.pe",
+      "value": "TGT-e3aca470de2b45ccbcf0207dc2b899dd-login.upao.edu.pe",
       "domain": "login.upao.edu.pe",
       "path": "/cas",
       "expires": -1,
@@ -42,7 +42,7 @@
     },
     {
       "name": "*",
-      "value": "dad8f26b08fb5c3fc291a7ff08ea6dcb1af65e73",
+      "value": "446bb8da51fa37ec536133571db64a612b5e60a6",
       "domain": "login.upao.edu.pe",
       "path": "/",
       "expires": -1,
@@ -52,7 +52,7 @@
     },
     {
       "name": ".AspNetCore.Antiforgery.bdS86ZjRdRk",
-      "value": "CfDJ8HplzBVWQUVCqX2eOrkpbJ65AwIWY-P_CayD0BbA5qiwjjX31aaxnPoqQHUonW17zoh-QG9ngWXzCpJArpvLIzi236-IYwxqO3m2_zTMnRhQwOtbCmTRL1N2OvTOM6HRcJb31SvaMvtk9SZ-7jGShTY",
+      "value": "CfDJ8HutUYN6qmRPgKDGTQPOfsogrAevW_54lbf0_J4Zwn-f0di9gKon9iwMhqT1i2Bt4sNCX0DRrBVmVplWlOcRyTHZt7SS3XCpKRDBq98YshJDHh7VKHytYpEtx-Vxb2Y-TGB54ZzpBA-mdcURBFkH3QM",
       "domain": "upaosso.upao.edu.pe",
       "path": "/",
       "expires": -1,
@@ -62,7 +62,7 @@
     },
     {
       "name": "commonAuthId",
-      "value": "eb841e8b-b579-49bc-ab12-6500e8a88f45",
+      "value": "06a5136e-e31a-4985-82dd-9bf846138a40",
       "domain": "login.upao.edu.pe",
       "path": "/",
       "expires": -1,
@@ -82,7 +82,7 @@
     },
     {
       "name": "X-Oracle-BMC-LBS-Route",
-      "value": "cb18d24524b921d0702732b93f09f063c5526b4c",
+      "value": "6aae26bd804086f6a91c9b7186b51bd37ebbb17b",
       "domain": "banner.upao.edu.pe",
       "path": "/",
       "expires": -1,
