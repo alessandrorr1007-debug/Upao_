@@ -1,9 +1,14 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
-const SESSION_FILE = "./auth/session.json";
-const CREDENTIALS_FILE = "./auth/credentials.json";
+const AUTH_DIR = "./auth";
+const SESSIONS_DIR = path.join(AUTH_DIR, "sessions");
+const CREDENTIALS_DIR = path.join(AUTH_DIR, "credentials");
+
+const LEGACY_SESSION_FILE = "./auth/session.json";
+const LEGACY_CREDENTIALS_FILE = "./auth/credentials.json";
 
 const URL_NOTAS =
     "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=202610";
@@ -11,25 +16,49 @@ const URL_NOTAS =
 const URL_ASISTENCIA =
     "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentAttendanceTracking#!/";
 
-function asegurarCarpetaAuth() {
-    if (!fs.existsSync("./auth")) {
-        fs.mkdirSync("./auth");
-    }
+function asegurarDirectorios(userId) {
+    if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
+    if (!fs.existsSync(SESSIONS_DIR)) fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+    if (!fs.existsSync(CREDENTIALS_DIR)) fs.mkdirSync(CREDENTIALS_DIR, { recursive: true });
 }
 
-async function crearSesionAutomatica() {
-    let usuario = process.env.UPAO_ID;
+function getSessionFile(userId) {
+    return path.join(SESSIONS_DIR, `${userId}.json`);
+}
+
+function getCredentialsFile(userId) {
+    return path.join(CREDENTIALS_DIR, `${userId}.json`);
+}
+
+function hasSession(userId) {
+    return fs.existsSync(getSessionFile(userId));
+}
+
+function hasCredentials(userId) {
+    return fs.existsSync(getCredentialsFile(userId));
+}
+
+function eliminarSesion(userId) {
+    const sessionFile = getSessionFile(userId);
+    const credsFile = getCredentialsFile(userId);
+    if (fs.existsSync(sessionFile)) fs.unlinkSync(sessionFile);
+    if (fs.existsSync(credsFile)) fs.unlinkSync(credsFile);
+}
+
+async function crearSesionAutomatica(userId) {
+    let usuario = userId;
     let password = process.env.UPAO_PASSWORD;
 
-    if (fs.existsSync(CREDENTIALS_FILE)) {
+    const credsFile = getCredentialsFile(userId);
+    if (fs.existsSync(credsFile)) {
         try {
-            const creds = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, "utf-8"));
+            const creds = JSON.parse(fs.readFileSync(credsFile, "utf-8"));
             if (creds.usuario && creds.password) {
                 usuario = creds.usuario;
                 password = creds.password;
             }
         } catch (e) {
-            console.error("Error al leer credentials.json", e);
+            console.error(`Error al leer credenciales de ${userId}`, e);
         }
     }
 
@@ -37,13 +66,13 @@ async function crearSesionAutomatica() {
         throw new Error("UNAUTHORIZED: Faltan credenciales de UPAO");
     }
 
-    asegurarCarpetaAuth();
+    asegurarDirectorios(userId);
 
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    console.log("🔐 Creando sesión automática UPAO...");
+    console.log(`🔐 Creando sesión automática UPAO para ${userId}...`);
 
     try {
         await page.goto(URL_NOTAS, {
@@ -55,8 +84,8 @@ async function crearSesionAutomatica() {
 
         if (!(await estaEnLogin(page))) {
             const storage = await context.storageState();
-            fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
-            console.log("✅ Ya había sesión activa");
+            fs.writeFileSync(getSessionFile(userId), JSON.stringify(storage, null, 2));
+            console.log(`✅ Ya había sesión activa para ${userId}`);
             return;
         }
 
@@ -88,9 +117,9 @@ async function crearSesionAutomatica() {
         }
 
         const storage = await context.storageState();
-        fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+        fs.writeFileSync(getSessionFile(userId), JSON.stringify(storage, null, 2));
 
-        console.log("✅ Sesión automática guardada");
+        console.log(`✅ Sesión automática guardada para ${userId}`);
     } finally {
         await browser.close();
     }
@@ -101,13 +130,14 @@ async function loginConCredenciales(usuario, password, remember) {
         throw new Error("Usuario y contraseña son requeridos");
     }
 
-    asegurarCarpetaAuth();
+    const userId = usuario;
+    asegurarDirectorios(userId);
 
     const browser = await chromium.launch({ headless: true });
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    console.log(`🔐 Intentando inicio de sesión para el usuario ${usuario}...`);
+    console.log(`🔐 Intentando inicio de sesión para el usuario ${userId}...`);
 
     try {
         await page.goto(URL_NOTAS, {
@@ -145,24 +175,25 @@ async function loginConCredenciales(usuario, password, remember) {
         }
 
         const storage = await context.storageState();
-        fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+        fs.writeFileSync(getSessionFile(userId), JSON.stringify(storage, null, 2));
 
         if (remember) {
-            fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify({ usuario, password }, null, 2));
+            fs.writeFileSync(getCredentialsFile(userId), JSON.stringify({ usuario, password }, null, 2));
         } else {
-            if (fs.existsSync(CREDENTIALS_FILE)) {
-                fs.unlinkSync(CREDENTIALS_FILE);
+            const credsFile = getCredentialsFile(userId);
+            if (fs.existsSync(credsFile)) {
+                fs.unlinkSync(credsFile);
             }
         }
 
-        console.log("✅ Sesión creada y guardada con éxito");
+        console.log(`✅ Sesión creada y guardada con éxito para ${userId}`);
     } finally {
         await browser.close();
     }
 }
 
 async function crearSesionManual() {
-    asegurarCarpetaAuth();
+    asegurarDirectorios("_manual");
 
     const browser = await chromium.launch({
         headless: false
@@ -186,19 +217,21 @@ async function crearSesionManual() {
     });
 
     const storage = await context.storageState();
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+    fs.writeFileSync(LEGACY_SESSION_FILE, JSON.stringify(storage, null, 2));
 
     await browser.close();
 
     console.log("✅ Sesión manual guardada");
 }
 
-async function crearContextoConSesion(browser) {
-    if (!fs.existsSync(SESSION_FILE)) {
-        await crearSesionAutomatica();
+async function crearContextoConSesion(browser, userId) {
+    const sessionFile = getSessionFile(userId);
+
+    if (!fs.existsSync(sessionFile)) {
+        await crearSesionAutomatica(userId);
     }
 
-    const storage = JSON.parse(fs.readFileSync(SESSION_FILE, "utf-8"));
+    const storage = JSON.parse(fs.readFileSync(getSessionFile(userId), "utf-8"));
 
     return await browser.newContext({
         storageState: storage
@@ -234,8 +267,13 @@ module.exports = {
     crearContextoConSesion,
     verificarSesion,
     loginConCredenciales,
-    SESSION_FILE,
-    CREDENTIALS_FILE,
+    eliminarSesion,
+    hasSession,
+    hasCredentials,
+    getSessionFile,
+    getCredentialsFile,
+    SESSION_FILE: LEGACY_SESSION_FILE,
+    CREDENTIALS_FILE: LEGACY_CREDENTIALS_FILE,
     URL_NOTAS,
     URL_ASISTENCIA
 };

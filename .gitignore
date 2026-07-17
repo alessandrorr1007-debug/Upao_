@@ -1,5 +1,8 @@
 node_modules
 .env
 auth/session.json
+auth/credentials.json
+auth/sessions/
+auth/credentials/
 debug-*.png
 debug-*.html

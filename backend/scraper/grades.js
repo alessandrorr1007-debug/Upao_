@@ -6,9 +6,9 @@ const {
     URL_NOTAS
 } = require("./utils/session");
 
-async function getNotas() {
+async function getNotas(userId) {
     let browser = await chromium.launch({ headless: true });
-    let context = await crearContextoConSesion(browser);
+    let context = await crearContextoConSesion(browser, userId);
     let page = await context.newPage();
 
     console.log("📊 Abriendo notas...");
@@ -19,10 +19,10 @@ async function getNotas() {
         console.log("⚠️ Sesión expirada. Reintentando login automático...");
         await browser.close();
 
-        await crearSesionAutomatica();
+        await crearSesionAutomatica(userId);
 
         browser = await chromium.launch({ headless: true });
-        context = await crearContextoConSesion(browser);
+        context = await crearContextoConSesion(browser, userId);
         page = await context.newPage();
 
         await page.goto(URL_NOTAS, { waitUntil: "networkidle" });

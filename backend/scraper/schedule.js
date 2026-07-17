@@ -1,15 +1,23 @@
 const { chromium } = require("playwright");
 const fs = require("fs");
+const path = require("path");
 
-const SESSION_FILE = "./auth/session.json";
+const SESSIONS_DIR = "./auth/sessions";
 
-async function getHorario() {
+function getSessionFile(userId) {
+    return path.join(SESSIONS_DIR, `${userId}.json`);
+}
+
+async function getHorario(userId) {
+    if (!userId) return [];
+
+    const sessionFile = getSessionFile(userId);
 
     const browser = await chromium.launch({ headless: true });
 
-    if (!fs.existsSync(SESSION_FILE)) return [];
+    if (!fs.existsSync(sessionFile)) return [];
 
-    const storage = JSON.parse(fs.readFileSync(SESSION_FILE));
+    const storage = JSON.parse(fs.readFileSync(sessionFile));
 
     const context = await browser.newContext({ storageState: storage });
     const page = await context.newPage();

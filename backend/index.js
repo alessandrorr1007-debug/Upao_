@@ -8,6 +8,8 @@ const {
     crearSesionAutomatica,
     crearSesionManual,
     loginConCredenciales,
+    eliminarSesion,
+    hasSession,
     SESSION_FILE,
     CREDENTIALS_FILE
 } = require("./scraper/utils/session");
@@ -21,28 +23,38 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-let cacheNotas = null;
-let cacheNotasTime = null;
-let cacheAsistencia = null;
-let cacheAsistenciaTime = null;
-
-let actualizandoNotas = false;
-let actualizandoAsistencia = false;
-
-let alertasNotas = [];
+const cacheNotas = new Map();
+const cacheNotasTime = new Map();
+const cacheAsistencia = new Map();
+const cacheAsistenciaTime = new Map();
+const actualizandoNotas = new Map();
+const actualizandoAsistencia = new Map();
+const alertasNotas = new Map();
 
 const NOTAS_AUTO_MINUTOS = 30;
+
+function getAlertas(userId) {
+    if (!alertasNotas.has(userId)) alertasNotas.set(userId, []);
+    return alertasNotas.get(userId);
+}
 
 app.get("/", (req, res) => {
     res.send("🚀 UPAO PX ACTIVO");
 });
 
 app.get("/auth/status", (req, res) => {
-    const hasSession = fs.existsSync(SESSION_FILE);
-    const hasCreds = fs.existsSync(CREDENTIALS_FILE);
+    const userId = req.query.userId;
+    let authenticated = false;
+
+    if (userId) {
+        authenticated = hasSession(userId);
+    } else {
+        authenticated = fs.existsSync(SESSION_FILE) || fs.existsSync(CREDENTIALS_FILE);
+    }
+
     res.json({
         ok: true,
-        authenticated: hasSession || hasCreds
+        authenticated
     });
 });
 
@@ -58,15 +70,16 @@ app.post("/auth/login", async (req, res) => {
 
     try {
         await loginConCredenciales(usuario, password, !!remember);
-        
-        cacheNotas = null;
-        cacheNotasTime = null;
-        cacheAsistencia = null;
-        cacheAsistenciaTime = null;
-        alertasNotas = [];
+
+        cacheNotas.delete(usuario);
+        cacheNotasTime.delete(usuario);
+        cacheAsistencia.delete(usuario);
+        cacheAsistenciaTime.delete(usuario);
+        alertasNotas.set(usuario, []);
 
         res.json({
             ok: true,
+            userId: usuario,
             message: "Sesión iniciada correctamente"
         });
     } catch (error) {
@@ -82,18 +95,19 @@ app.post("/auth/login", async (req, res) => {
 
 app.post("/auth/logout", (req, res) => {
     try {
-        if (fs.existsSync(SESSION_FILE)) {
-            fs.unlinkSync(SESSION_FILE);
-        }
-        if (fs.existsSync(CREDENTIALS_FILE)) {
-            fs.unlinkSync(CREDENTIALS_FILE);
-        }
+        const userId = req.body.userId || req.query.userId;
 
-        cacheNotas = null;
-        cacheNotasTime = null;
-        cacheAsistencia = null;
-        cacheAsistenciaTime = null;
-        alertasNotas = [];
+        if (userId) {
+            eliminarSesion(userId);
+            cacheNotas.delete(userId);
+            cacheNotasTime.delete(userId);
+            cacheAsistencia.delete(userId);
+            cacheAsistenciaTime.delete(userId);
+            alertasNotas.delete(userId);
+        } else {
+            if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
+            if (fs.existsSync(CREDENTIALS_FILE)) fs.unlinkSync(CREDENTIALS_FILE);
+        }
 
         res.json({
             ok: true,
@@ -110,7 +124,8 @@ app.post("/auth/logout", (req, res) => {
 
 app.get("/login-auto", async (req, res) => {
     try {
-        await crearSesionAutomatica();
+        const userId = req.query.userId || process.env.UPAO_ID;
+        await crearSesionAutomatica(userId);
         res.json({ ok: true, message: "Sesión automática creada correctamente" });
     } catch (error) {
         res.status(500).json({ ok: false, message: "No se pudo crear sesión", error: error.message });
@@ -130,47 +145,56 @@ app.get("/crear-sesion", async (req, res) => {
    NOTAS
 ========================= */
 app.get("/notas", async (req, res) => {
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).json({
+            ok: false,
+            message: "Se requiere el parámetro userId"
+        });
+    }
+
     try {
         const force = req.query.force === "true";
 
-        if (!force && cacheNotas) {
+        if (!force && cacheNotas.has(userId)) {
             return res.json({
                 ok: true,
                 cached: true,
-                updatedAt: cacheNotasTime,
-                alertas: alertasNotas,
-                data: cacheNotas
+                updatedAt: cacheNotasTime.get(userId),
+                alertas: getAlertas(userId),
+                data: cacheNotas.get(userId)
             });
         }
 
-        if (actualizandoNotas && cacheNotas) {
+        if (actualizandoNotas.get(userId) && cacheNotas.has(userId)) {
             return res.json({
                 ok: true,
                 cached: true,
                 updating: true,
-                updatedAt: cacheNotasTime,
-                alertas: alertasNotas,
-                data: cacheNotas
+                updatedAt: cacheNotasTime.get(userId),
+                alertas: getAlertas(userId),
+                data: cacheNotas.get(userId)
             });
         }
 
-        const data = await actualizarNotas();
+        const data = await actualizarNotas(userId);
 
         res.json({
             ok: true,
             cached: false,
-            updatedAt: cacheNotasTime,
-            alertas: alertasNotas,
+            updatedAt: cacheNotasTime.get(userId),
+            alertas: getAlertas(userId),
             data
         });
 
     } catch (error) {
-        actualizandoNotas = false;
+        actualizandoNotas.delete(userId);
         const isAuthError = error.message.includes("UNAUTHORIZED");
         res.status(isAuthError ? 401 : 500).json({
             ok: false,
             code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
-            message: isAuthError ? "No hay una sesión activa de UPAO" : "Error al obtener notas",
+            message: isAuthError ? "No hay una sesión activa de UPAO para este usuario" : "Error al obtener notas",
             error: error.message
         });
     }
@@ -180,56 +204,65 @@ app.get("/notas", async (req, res) => {
    ASISTENCIA
 ========================= */
 app.get("/asistencia", async (req, res) => {
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).json({
+            ok: false,
+            message: "Se requiere el parámetro userId"
+        });
+    }
+
     try {
         const force = req.query.force === "true";
 
-        if (!force && cacheAsistencia && cacheAsistencia.length > 0) {
+        if (!force && cacheAsistencia.has(userId) && cacheAsistencia.get(userId).length > 0) {
             return res.json({
                 ok: true,
                 cached: true,
-                updatedAt: cacheAsistenciaTime,
-                data: cacheAsistencia
+                updatedAt: cacheAsistenciaTime.get(userId),
+                data: cacheAsistencia.get(userId)
             });
         }
 
-        if (actualizandoAsistencia && cacheAsistencia && cacheAsistencia.length > 0) {
+        if (actualizandoAsistencia.get(userId) && cacheAsistencia.has(userId) && cacheAsistencia.get(userId).length > 0) {
             return res.json({
                 ok: true,
                 cached: true,
                 updating: true,
-                updatedAt: cacheAsistenciaTime,
-                data: cacheAsistencia
+                updatedAt: cacheAsistenciaTime.get(userId),
+                data: cacheAsistencia.get(userId)
             });
         }
 
-        actualizandoAsistencia = true;
+        actualizandoAsistencia.set(userId, true);
 
-        const data = await getAsistencia();
+        const data = await getAsistencia(userId);
 
-        actualizandoAsistencia = false;
+        actualizandoAsistencia.set(userId, false);
 
         if (!data || data.length === 0) {
             return res.json({
                 ok: true,
-                cached: !!cacheAsistencia,
+                cached: cacheAsistencia.has(userId),
                 warning: "UPAO devolvió asistencia vacía",
-                updatedAt: cacheAsistenciaTime,
-                data: cacheAsistencia || []
+                updatedAt: cacheAsistenciaTime.get(userId),
+                data: cacheAsistencia.get(userId) || []
             });
         }
 
-        cacheAsistencia = data;
-        cacheAsistenciaTime = new Date().toISOString();
+        cacheAsistencia.set(userId, data);
+        cacheAsistenciaTime.set(userId, new Date().toISOString());
 
         res.json({
             ok: true,
             cached: false,
-            updatedAt: cacheAsistenciaTime,
+            updatedAt: cacheAsistenciaTime.get(userId),
             data
         });
 
     } catch (error) {
-        actualizandoAsistencia = false;
+        actualizandoAsistencia.delete(userId);
         const isAuthError = error.message.includes("UNAUTHORIZED");
 
         res.status(isAuthError ? 401 : 500).json({
@@ -237,9 +270,9 @@ app.get("/asistencia", async (req, res) => {
             code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
             message: isAuthError ? "No hay una sesión activa de UPAO" : "Error al obtener asistencia",
             error: error.message,
-            cached: !!cacheAsistencia,
-            updatedAt: cacheAsistenciaTime,
-            data: cacheAsistencia || []
+            cached: cacheAsistencia.has(userId),
+            updatedAt: cacheAsistenciaTime.get(userId),
+            data: cacheAsistencia.get(userId) || []
         });
     }
 });
@@ -248,15 +281,22 @@ app.get("/asistencia", async (req, res) => {
    ALERTAS DE NOTAS
 ========================= */
 app.get("/notas-alertas", (req, res) => {
+    const userId = req.query.userId;
+    const alertas = userId ? getAlertas(userId) : [];
+
     res.json({
         ok: true,
-        total: alertasNotas.length,
-        data: alertasNotas
+        total: alertas.length,
+        data: alertas
     });
 });
 
 app.post("/notas-alertas/visto", (req, res) => {
-    alertasNotas = [];
+    const userId = req.body.userId || req.query.userId;
+    if (userId) {
+        alertasNotas.set(userId, []);
+    }
+
     res.json({
         ok: true,
         message: "Alertas marcadas como vistas"
@@ -266,32 +306,33 @@ app.post("/notas-alertas/visto", (req, res) => {
 /* =========================
    FUNCIONES
 ========================= */
-async function actualizarNotas() {
-    if (actualizandoNotas) return cacheNotas || [];
+async function actualizarNotas(userId) {
+    if (actualizandoNotas.get(userId)) return cacheNotas.get(userId) || [];
 
-    actualizandoNotas = true;
+    actualizandoNotas.set(userId, true);
 
-    console.log("🔄 Actualizando notas desde UPAO...");
+    console.log(`🔄 Actualizando notas desde UPAO para ${userId}...`);
 
-    const notasAnteriores = cacheNotas;
-    const notasNuevas = await getNotas();
+    const notasAnteriores = cacheNotas.get(userId) || null;
+    const notasNuevas = await getNotas(userId);
 
     if (notasAnteriores) {
         const cambios = detectarCambiosNotas(notasAnteriores, notasNuevas);
 
         if (cambios.length > 0) {
-            alertasNotas.push(...cambios);
-            console.log(`🔔 ${cambios.length} cambios nuevos en notas`);
+            const alertas = getAlertas(userId);
+            alertas.push(...cambios);
+            console.log(`🔔 ${cambios.length} cambios nuevos en notas de ${userId}`);
         } else {
-            console.log("✅ No hay cambios nuevos en notas");
+            console.log(`✅ No hay cambios nuevos en notas de ${userId}`);
         }
     }
 
-    cacheNotas = notasNuevas;
-    cacheNotasTime = new Date().toISOString();
-    actualizandoNotas = false;
+    cacheNotas.set(userId, notasNuevas);
+    cacheNotasTime.set(userId, new Date().toISOString());
+    actualizandoNotas.set(userId, false);
 
-    console.log("✅ Notas actualizadas en cache");
+    console.log(`✅ Notas actualizadas en cache para ${userId}`);
 
     return notasNuevas;
 }
@@ -371,24 +412,24 @@ function crearAlerta(curso, componente, puntaje, tipo) {
 }
 
 /* =========================
-   AUTO UPDATE SOLO NOTAS
+   AUTO UPDATE - Deshabilitado
+   (El sync lo maneja el cliente Android vía WorkManager)
 ========================= */
-setInterval(() => {
-    actualizarNotas().catch(error => {
-        actualizandoNotas = false;
-        console.log("❌ Error auto actualizando notas:", error.message);
-    });
-}, NOTAS_AUTO_MINUTOS * 60 * 1000);
+// setInterval(() => {
+//     actualizarNotas().catch(error => {
+//         actualizandoNotas = false;
+//         console.log("❌ Error auto actualizando notas:", error.message);
+//     });
+// }, NOTAS_AUTO_MINUTOS * 60 * 1000);
 
 /* =========================
    START
    ========================= */
 const PORT = process.env.PORT || 3000;
 
-// Servir archivos estáticos del frontend en /web
 app.use("/web", express.static(path.join(__dirname, "../web")));
 
 app.listen(PORT, () => {
     console.log(`🔥 Servidor iniciado en puerto ${PORT}`);
-    console.log(`⏱️ Notas se actualizarán cada ${NOTAS_AUTO_MINUTOS} minutos`);
+    console.log("⏱️ Sync de notas manejado por clientes Android");
 });

@@ -8,9 +8,9 @@ const {
 
 const NRC_PERMITIDOS = ["3233", "5585", "5592", "5598", "5636", "6645"];
 
-async function getAsistencia() {
+async function getAsistencia(userId) {
     let browser = await chromium.launch({ headless: true });
-    let context = await crearContextoConSesion(browser);
+    let context = await crearContextoConSesion(browser, userId);
     let page = await context.newPage();
 
     try {
@@ -27,10 +27,10 @@ async function getAsistencia() {
             console.log("⚠️ Sesión expirada o login detectado. Reintentando login automático...");
             await browser.close();
 
-            await crearSesionAutomatica();
+            await crearSesionAutomatica(userId);
 
             browser = await chromium.launch({ headless: true });
-            context = await crearContextoConSesion(browser);
+            context = await crearContextoConSesion(browser, userId);
             page = await context.newPage();
 
             await page.goto(URL_ASISTENCIA, {
