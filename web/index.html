@@ -9,17 +9,44 @@
     <link rel="stylesheet" href="./style.css" />
 </head>
 
-<body>
+<body class="logged-out">
+
+    <div id="login-container" class="login-container">
+        <div class="login-card">
+            <div class="login-logo">🎓 UPAO PX</div>
+            <h2>Iniciar Sesión</h2>
+            <p>Ingresa tus credenciales de UPAO para sincronizar tus notas y asistencia.</p>
+            
+            <div id="login-error" class="login-error" style="display: none;"></div>
+            
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <label for="username">Usuario (Código o Correo)</label>
+                    <input type="text" id="username" placeholder="Ej. 000123456" required autocomplete="username" />
+                </div>
+                <div class="input-group">
+                    <label for="password">Contraseña</label>
+                    <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" />
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="remember" checked />
+                    <label for="remember">Recordar contraseña</label>
+                </div>
+                <button type="submit" id="login-btn">
+                    <span id="btn-text">Iniciar Sesión</span>
+                    <span id="btn-loader" class="loader-spinner" style="display: none;"></span>
+                </button>
+            </form>
+        </div>
+    </div>
 
     <aside class="sidebar">
         <div class="logo">🎓 UPAO PX</div>
 
         <div class="menu">
-            <button onclick="openModule('notas')">📊 Notas</button>
-            <button onclick="openModule('asistencia')">✅ Asistencia</button>
-            <button onclick="openModule('horario')">🗓️ Horario</button>
-            <button onclick="openModule('historial')">📚 Historial</button>
-            <button onclick="openModule('cuenta')">💰 Cuenta</button>
+            <button id="menu-dashboard" class="menu-btn active" onclick="showSection('dashboard')">📊 Resumen General</button>
+            <button id="menu-cursos" class="menu-btn" onclick="showSection('cursos')">📘 Detalle de Cursos</button>
+            <button onclick="handleLogout()" class="logout-btn">🚪 Cerrar Sesión</button>
         </div>
     </aside>
 
@@ -27,57 +54,160 @@
 
         <header class="topbar">
             <div>
-                <h1 id="title">Dashboard</h1>
-                <p id="subtitle">Visualiza tus datos académicos desde UPAO PX</p>
+                <h1 id="title">Resumen Académico</h1>
+                <p id="subtitle">Estado general de tus calificaciones y rendimiento</p>
             </div>
 
-            <button class="refresh" onclick="reloadCurrent()">Actualizar</button>
+            <div class="header-actions">
+                <span id="global-status" class="status-indicator">Cargando...</span>
+                <button class="refresh" onclick="actualizarDatos(true)">Actualizar</button>
+            </div>
         </header>
 
-        <section id="home" class="home">
-            <div class="hero">
-                <span class="badge">Sistema conectado</span>
-                <h2>Bienvenido a UPAO PX</h2>
-                <p>Consulta tus notas, asistencia, horario y datos académicos en tiempo real.</p>
+        <!-- Sección 1: Resumen General (Dashboard) -->
+        <section id="dashboard-section" class="section-container active-section">
+            
+            <!-- Grid de Métricas Clave (KPIs) -->
+            <div class="kpi-grid">
+                <div class="kpi-card purple">
+                    <div class="kpi-icon">📊</div>
+                    <div class="kpi-info">
+                        <span>Promedio Ponderado</span>
+                        <h2 id="metric-promedio">--</h2>
+                    </div>
+                </div>
+                <div class="kpi-card blue">
+                    <div class="kpi-icon">🎓</div>
+                    <div class="kpi-info">
+                        <span>Créditos Totales</span>
+                        <h2 id="metric-creditos">--</h2>
+                    </div>
+                </div>
+                <div class="kpi-card green">
+                    <div class="kpi-icon">✅</div>
+                    <div class="kpi-info">
+                        <span>Cursos Aprobados</span>
+                        <h2 id="metric-aprobados">--</h2>
+                    </div>
+                </div>
+                <div class="kpi-card red">
+                    <div class="kpi-icon">🚨</div>
+                    <div class="kpi-info">
+                        <span>En Riesgo</span>
+                        <h2 id="metric-riesgo">--</h2>
+                    </div>
+                </div>
             </div>
 
-            <div class="grid">
-                <div class="card" onclick="openModule('notas')">
-                    <span>📊</span>
-                    <h3>Notas</h3>
-                    <p>EP1, Parcial, EP2, Final y subcomponentes.</p>
+            <!-- Grid de Contenido del Dashboard -->
+            <div class="dashboard-grid">
+                
+                <!-- Panel de Alertas Recientes -->
+                <div class="dashboard-panel alerts-panel" id="panel-alertas-container" style="display: none;">
+                    <div class="panel-header">
+                        <h3>🔔 Alertas de Calificaciones</h3>
+                        <button onclick="marcarAlertasComoVistas()" class="clean-alerts-btn">Marcar como vistas</button>
+                    </div>
+                    <div class="panel-content" id="dashboard-alertas">
+                        <!-- Las alertas se insertan aquí -->
+                    </div>
                 </div>
 
-                <div class="card" onclick="openModule('asistencia')">
-                    <span>✅</span>
-                    <h3>Asistencia</h3>
-                    <p>Porcentaje actualizado por curso.</p>
+                <!-- Tabla de Resumen de Cursos -->
+                <div class="dashboard-panel table-panel">
+                    <div class="panel-header">
+                        <h3>📚 Mis Cursos</h3>
+                    </div>
+                    <div class="panel-content">
+                        <div class="table-responsive">
+                            <table class="courses-table">
+                                <thead>
+                                    <tr>
+                                        <th>Curso</th>
+                                        <th>NRC</th>
+                                        <th>Créditos</th>
+                                        <th>EP1</th>
+                                        <th>Parcial</th>
+                                        <th>EP2</th>
+                                        <th>Final</th>
+                                        <th>Promedio</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboard-tabla-cursos">
+                                    <!-- Las filas de cursos se insertan aquí -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="card" onclick="openModule('horario')">
-                    <span>🗓️</span>
-                    <h3>Horario</h3>
-                    <p>Clases del ciclo académico.</p>
-                </div>
-
-                <div class="card" onclick="openModule('cuenta')">
-                    <span>💰</span>
-                    <h3>Cuenta</h3>
-                    <p>Estado financiero universitario.</p>
-                </div>
             </div>
+
         </section>
 
-        <section id="view" class="view">
-            <div class="view-head">
-                <button class="back" onclick="backHome()">← Volver</button>
-                <div id="status" class="status">Selecciona un módulo.</div>
+        <!-- Sección 2: Detalle de Cursos -->
+        <section id="cursos-section" class="section-container" style="display: none;">
+            <div id="cursos-detalle-list" class="content">
+                <!-- Las tarjetas detalladas de cursos se insertan aquí -->
             </div>
-
-            <div id="content" class="content"></div>
         </section>
 
     </main>
+
+    <!-- =============================================
+         MODAL: Vista de Detalle de Curso
+         ============================================= -->
+    <div id="course-detail-modal" class="modal-overlay" onclick="handleModalOverlayClick(event)">
+        <div class="modal-card" id="modal-card">
+
+            <!-- Cabecera del modal -->
+            <div class="modal-header">
+                <div class="modal-header-info">
+                    <h2 id="modal-course-name">Nombre del Curso</h2>
+                    <div class="modal-meta">
+                        <span id="modal-nrc">NRC --</span>
+                        <span class="modal-meta-sep">•</span>
+                        <span id="modal-codigo">Código --</span>
+                        <span class="modal-meta-sep">•</span>
+                        <span id="modal-creditos">-- Créditos</span>
+                    </div>
+                </div>
+                <button class="modal-close-btn" onclick="closeCourseModal()" title="Cerrar">✕</button>
+            </div>
+
+            <!-- KPIs rápidos del curso -->
+            <div class="modal-kpis">
+                <div class="modal-kpi purple">
+                    <span>Promedio Ponderado</span>
+                    <strong id="modal-promedio">--</strong>
+                </div>
+                <div class="modal-kpi" id="modal-estado-kpi">
+                    <span>Estado</span>
+                    <strong id="modal-estado">--</strong>
+                </div>
+                <div class="modal-kpi blue">
+                    <span>Créditos</span>
+                    <strong id="modal-creditos-kpi">--</strong>
+                </div>
+                <div class="modal-kpi">
+                    <span>Docente</span>
+                    <strong id="modal-docente" style="font-size:12px; color: var(--muted);">No disponible en notas</strong>
+                </div>
+            </div>
+
+            <!-- Cuadrícula de los 4 componentes principales -->
+            <div class="modal-components-grid" id="modal-components-grid">
+                <!-- Los componentes se insertan dinámicamente aquí -->
+            </div>
+
+            <!-- Pie de modal: calculadora de pronóstico -->
+            <div class="modal-footer" id="modal-footer">
+                <!-- El mensaje del pronóstico se inserta dinámicamente aquí -->
+            </div>
+
+        </div>
+    </div>
 
     <script src="./app.js"></script>
 </body>

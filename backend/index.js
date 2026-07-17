@@ -2,11 +2,16 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const {
     crearSesionAutomatica,
-    crearSesionManual
+    crearSesionManual,
+    loginConCredenciales,
+    SESSION_FILE,
+    CREDENTIALS_FILE
 } = require("./scraper/utils/session");
+const fs = require("fs");
 
 const { getAsistencia } = require("./scraper/attendance");
 const { getNotas } = require("./scraper/grades");
@@ -30,6 +35,77 @@ const NOTAS_AUTO_MINUTOS = 30;
 
 app.get("/", (req, res) => {
     res.send("🚀 UPAO PX ACTIVO");
+});
+
+app.get("/auth/status", (req, res) => {
+    const hasSession = fs.existsSync(SESSION_FILE);
+    const hasCreds = fs.existsSync(CREDENTIALS_FILE);
+    res.json({
+        ok: true,
+        authenticated: hasSession || hasCreds
+    });
+});
+
+app.post("/auth/login", async (req, res) => {
+    const { usuario, password, remember } = req.body;
+
+    if (!usuario || !password) {
+        return res.status(400).json({
+            ok: false,
+            message: "Usuario y contraseña son requeridos"
+        });
+    }
+
+    try {
+        await loginConCredenciales(usuario, password, !!remember);
+        
+        cacheNotas = null;
+        cacheNotasTime = null;
+        cacheAsistencia = null;
+        cacheAsistenciaTime = null;
+        alertasNotas = [];
+
+        res.json({
+            ok: true,
+            message: "Sesión iniciada correctamente"
+        });
+    } catch (error) {
+        console.error("Error en POST /auth/login:", error.message);
+        res.status(401).json({
+            ok: false,
+            message: error.message.includes("UNAUTHORIZED")
+                ? "Código o contraseña incorrectos"
+                : "Error al iniciar sesión: " + error.message
+        });
+    }
+});
+
+app.post("/auth/logout", (req, res) => {
+    try {
+        if (fs.existsSync(SESSION_FILE)) {
+            fs.unlinkSync(SESSION_FILE);
+        }
+        if (fs.existsSync(CREDENTIALS_FILE)) {
+            fs.unlinkSync(CREDENTIALS_FILE);
+        }
+
+        cacheNotas = null;
+        cacheNotasTime = null;
+        cacheAsistencia = null;
+        cacheAsistenciaTime = null;
+        alertasNotas = [];
+
+        res.json({
+            ok: true,
+            message: "Sesión cerrada correctamente"
+        });
+    } catch (error) {
+        res.status(500).json({
+            ok: false,
+            message: "Error al cerrar sesión",
+            error: error.message
+        });
+    }
 });
 
 app.get("/login-auto", async (req, res) => {
@@ -90,9 +166,11 @@ app.get("/notas", async (req, res) => {
 
     } catch (error) {
         actualizandoNotas = false;
-        res.status(500).json({
+        const isAuthError = error.message.includes("UNAUTHORIZED");
+        res.status(isAuthError ? 401 : 500).json({
             ok: false,
-            message: "Error al obtener notas",
+            code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
+            message: isAuthError ? "No hay una sesión activa de UPAO" : "Error al obtener notas",
             error: error.message
         });
     }
@@ -152,10 +230,12 @@ app.get("/asistencia", async (req, res) => {
 
     } catch (error) {
         actualizandoAsistencia = false;
+        const isAuthError = error.message.includes("UNAUTHORIZED");
 
-        res.status(500).json({
+        res.status(isAuthError ? 401 : 500).json({
             ok: false,
-            message: "Error al obtener asistencia",
+            code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
+            message: isAuthError ? "No hay una sesión activa de UPAO" : "Error al obtener asistencia",
             error: error.message,
             cached: !!cacheAsistencia,
             updatedAt: cacheAsistenciaTime,
@@ -302,8 +382,11 @@ setInterval(() => {
 
 /* =========================
    START
-========================= */
+   ========================= */
 const PORT = process.env.PORT || 3000;
+
+// Servir archivos estáticos del frontend en /web
+app.use("/web", express.static(path.join(__dirname, "../web")));
 
 app.listen(PORT, () => {
     console.log(`🔥 Servidor iniciado en puerto ${PORT}`);

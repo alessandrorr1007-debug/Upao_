@@ -1,0 +1,9 @@
+{
+  "name": "upao-px-root",
+  "version": "1.0.0",
+  "description": "Root configuration to execute backend scripts from the project root directory",
+  "scripts": {
+    "start": "npm --prefix backend start",
+    "dev": "npm --prefix backend run dev"
+  }
+}

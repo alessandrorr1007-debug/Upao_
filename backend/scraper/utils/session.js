@@ -3,6 +3,7 @@ const fs = require("fs");
 require("dotenv").config();
 
 const SESSION_FILE = "./auth/session.json";
+const CREDENTIALS_FILE = "./auth/credentials.json";
 
 const URL_NOTAS =
     "https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=202610";
@@ -17,11 +18,23 @@ function asegurarCarpetaAuth() {
 }
 
 async function crearSesionAutomatica() {
-    const usuario = process.env.UPAO_ID;
-    const password = process.env.UPAO_PASSWORD;
+    let usuario = process.env.UPAO_ID;
+    let password = process.env.UPAO_PASSWORD;
+
+    if (fs.existsSync(CREDENTIALS_FILE)) {
+        try {
+            const creds = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, "utf-8"));
+            if (creds.usuario && creds.password) {
+                usuario = creds.usuario;
+                password = creds.password;
+            }
+        } catch (e) {
+            console.error("Error al leer credentials.json", e);
+        }
+    }
 
     if (!usuario || !password) {
-        throw new Error("Faltan UPAO_ID o UPAO_PASSWORD en .env");
+        throw new Error("UNAUTHORIZED: Faltan credenciales de UPAO");
     }
 
     asegurarCarpetaAuth();
@@ -32,55 +45,120 @@ async function crearSesionAutomatica() {
 
     console.log("🔐 Creando sesión automática UPAO...");
 
-    await page.goto(URL_NOTAS, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000
-    });
+    try {
+        await page.goto(URL_NOTAS, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
 
-    await page.waitForTimeout(3000);
+        await page.waitForTimeout(3000);
 
-    if (!(await estaEnLogin(page))) {
+        if (!(await estaEnLogin(page))) {
+            const storage = await context.storageState();
+            fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+            console.log("✅ Ya había sesión activa");
+            return;
+        }
+
+        const inputUsuario = page.locator('input[type="text"], input[type="email"]').first();
+        const inputPassword = page.locator('input[type="password"]').first();
+
+        await inputUsuario.fill(usuario);
+        await inputPassword.fill(password);
+
+        const boton = page.locator('input[type="submit"], button[type="submit"]').first();
+
+        if (await boton.count() > 0) {
+            await boton.click();
+        } else {
+            await inputPassword.press("Enter");
+        }
+
+        await page.waitForTimeout(12000);
+
+        await page.goto(URL_NOTAS, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(5000);
+
+        if (await estaEnLogin(page)) {
+            throw new Error("UNAUTHORIZED: No se pudo iniciar sesión automáticamente");
+        }
+
         const storage = await context.storageState();
         fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+
+        console.log("✅ Sesión automática guardada");
+    } finally {
         await browser.close();
-        console.log("✅ Ya había sesión activa");
-        return;
+    }
+}
+
+async function loginConCredenciales(usuario, password, remember) {
+    if (!usuario || !password) {
+        throw new Error("Usuario y contraseña son requeridos");
     }
 
-    const inputUsuario = page.locator('input[type="text"], input[type="email"]').first();
-    const inputPassword = page.locator('input[type="password"]').first();
+    asegurarCarpetaAuth();
 
-    await inputUsuario.fill(usuario);
-    await inputPassword.fill(password);
+    const browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext();
+    const page = await context.newPage();
 
-    const boton = page.locator('input[type="submit"], button[type="submit"]').first();
+    console.log(`🔐 Intentando inicio de sesión para el usuario ${usuario}...`);
 
-    if (await boton.count() > 0) {
-        await boton.click();
-    } else {
-        await inputPassword.press("Enter");
-    }
+    try {
+        await page.goto(URL_NOTAS, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
 
-    await page.waitForTimeout(12000);
+        await page.waitForTimeout(3000);
 
-    await page.goto(URL_NOTAS, {
-        waitUntil: "domcontentloaded",
-        timeout: 60000
-    });
+        const inputUsuario = page.locator('input[type="text"], input[type="email"]').first();
+        const inputPassword = page.locator('input[type="password"]').first();
 
-    await page.waitForTimeout(5000);
+        await inputUsuario.fill(usuario);
+        await inputPassword.fill(password);
 
-    if (await estaEnLogin(page)) {
+        const boton = page.locator('input[type="submit"], button[type="submit"]').first();
+
+        if (await boton.count() > 0) {
+            await boton.click();
+        } else {
+            await inputPassword.press("Enter");
+        }
+
+        await page.waitForTimeout(12000);
+
+        await page.goto(URL_NOTAS, {
+            waitUntil: "domcontentloaded",
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(5000);
+
+        if (await estaEnLogin(page)) {
+            throw new Error("UNAUTHORIZED: Código o contraseña incorrectos");
+        }
+
+        const storage = await context.storageState();
+        fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
+
+        if (remember) {
+            fs.writeFileSync(CREDENTIALS_FILE, JSON.stringify({ usuario, password }, null, 2));
+        } else {
+            if (fs.existsSync(CREDENTIALS_FILE)) {
+                fs.unlinkSync(CREDENTIALS_FILE);
+            }
+        }
+
+        console.log("✅ Sesión creada y guardada con éxito");
+    } finally {
         await browser.close();
-        throw new Error("No se pudo iniciar sesión automáticamente");
     }
-
-    const storage = await context.storageState();
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(storage, null, 2));
-
-    await browser.close();
-
-    console.log("✅ Sesión automática guardada");
 }
 
 async function crearSesionManual() {
@@ -155,6 +233,9 @@ module.exports = {
     crearSesionManual,
     crearContextoConSesion,
     verificarSesion,
+    loginConCredenciales,
+    SESSION_FILE,
+    CREDENTIALS_FILE,
     URL_NOTAS,
     URL_ASISTENCIA
 };
