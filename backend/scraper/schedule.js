@@ -1,44 +1,38 @@
 const { chromium } = require("playwright");
-const fs = require("fs");
-const path = require("path");
-
-const SESSIONS_DIR = "./auth/sessions";
-
-function getSessionFile(userId) {
-    return path.join(SESSIONS_DIR, `${userId}.json`);
-}
+const { crearContextoConSesion, verificarSesion } = require("./utils/session");
 
 async function getHorario(userId) {
     if (!userId) return [];
 
-    const sessionFile = getSessionFile(userId);
-
     const browser = await chromium.launch({ headless: true });
 
-    if (!fs.existsSync(sessionFile)) return [];
+    try {
+        const context = await crearContextoConSesion(browser, userId);
+        const page = await context.newPage();
 
-    const storage = JSON.parse(fs.readFileSync(sessionFile));
+        await page.goto("https://inscripcion.upao.edu.pe/StudentRegistrationSsb/ssb/registrationHistory/registrationHistory",
+            { waitUntil: "networkidle" }
+        );
 
-    const context = await browser.newContext({ storageState: storage });
-    const page = await context.newPage();
+        await page.waitForTimeout(8000);
 
-    await page.goto("https://inscripcion.upao.edu.pe/StudentRegistrationSsb/ssb/registrationHistory/registrationHistory",
-        { waitUntil: "networkidle" }
-    );
+        if (!(await verificarSesion(page))) return [];
 
-    await page.waitForTimeout(8000);
+        const data = await page.evaluate(() => {
+            return Array.from(document.querySelectorAll("table tr"))
+                .map(r => Array.from(r.querySelectorAll("td"))
+                    .map(td => td.innerText.trim())
+                )
+                .filter(r => r.length > 0);
+        });
 
-    const data = await page.evaluate(() => {
-
-        return Array.from(document.querySelectorAll("table tr"))
-            .map(r => Array.from(r.querySelectorAll("td"))
-                .map(td => td.innerText.trim())
-            )
-            .filter(r => r.length > 0);
-    });
-
-    await browser.close();
-    return data;
+        return data;
+    } catch (error) {
+        console.error(`Error obteniendo horario para ${userId}:`, error.message);
+        return [];
+    } finally {
+        await browser.close();
+    }
 }
 
 module.exports = { getHorario };

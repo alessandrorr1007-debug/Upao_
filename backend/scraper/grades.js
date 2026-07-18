@@ -6,14 +6,23 @@ const {
     URL_NOTAS
 } = require("./utils/session");
 
-async function getNotas(userId) {
+// Período por defecto (coincide con URL_NOTAS hardcodeada como fallback)
+const TERMCODE_ACTUAL = "202610";
+
+function buildNotasUrl(termCode) {
+    const code = termCode || TERMCODE_ACTUAL;
+    return `https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=${code}`;
+}
+
+async function getNotas(userId, termCode = null) {
+    const urlNotas = buildNotasUrl(termCode);
+    console.log(`📊 Abriendo notas... URL: ${urlNotas}`);
+
     let browser = await chromium.launch({ headless: true });
     let context = await crearContextoConSesion(browser, userId);
     let page = await context.newPage();
 
-    console.log("📊 Abriendo notas...");
-
-    await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+    await page.goto(urlNotas, { waitUntil: "networkidle" });
 
     if (!(await verificarSesion(page))) {
         console.log("⚠️ Sesión expirada. Reintentando login automático...");
@@ -25,7 +34,7 @@ async function getNotas(userId) {
         context = await crearContextoConSesion(browser, userId);
         page = await context.newPage();
 
-        await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+        await page.goto(urlNotas, { waitUntil: "networkidle" });
     }
 
     await page.waitForSelector("#table1 tbody tr", { timeout: 20000 });
@@ -73,7 +82,8 @@ async function getNotas(userId) {
 
         resultado.push(item);
 
-        await page.goto(URL_NOTAS, { waitUntil: "networkidle" });
+        // Volver a la página de notas del período correcto entre cada curso
+        await page.goto(urlNotas, { waitUntil: "networkidle" });
         await page.waitForSelector("#table1 tbody tr", { timeout: 20000 });
     }
 

@@ -9,11 +9,8 @@ const {
     crearSesionManual,
     loginConCredenciales,
     eliminarSesion,
-    hasSession,
-    SESSION_FILE,
-    CREDENTIALS_FILE
+    hasSession
 } = require("./scraper/utils/session");
-const fs = require("fs");
 
 const { getAsistencia } = require("./scraper/attendance");
 const { getNotas } = require("./scraper/grades");
@@ -44,17 +41,17 @@ app.get("/", (req, res) => {
 
 app.get("/auth/status", (req, res) => {
     const userId = req.query.userId;
-    let authenticated = false;
 
-    if (userId) {
-        authenticated = hasSession(userId);
-    } else {
-        authenticated = fs.existsSync(SESSION_FILE) || fs.existsSync(CREDENTIALS_FILE);
+    if (!userId) {
+        return res.status(400).json({
+            ok: false,
+            message: "Se requiere el parámetro userId"
+        });
     }
 
     res.json({
         ok: true,
-        authenticated
+        authenticated: hasSession(userId)
     });
 });
 
@@ -88,7 +85,7 @@ app.post("/auth/login", async (req, res) => {
             ok: false,
             message: error.message.includes("UNAUTHORIZED")
                 ? "Código o contraseña incorrectos"
-                : "Error al iniciar sesión: " + error.message
+                : "Error al iniciar sesión"
         });
     }
 });
@@ -97,17 +94,19 @@ app.post("/auth/logout", (req, res) => {
     try {
         const userId = req.body.userId || req.query.userId;
 
-        if (userId) {
-            eliminarSesion(userId);
-            cacheNotas.delete(userId);
-            cacheNotasTime.delete(userId);
-            cacheAsistencia.delete(userId);
-            cacheAsistenciaTime.delete(userId);
-            alertasNotas.delete(userId);
-        } else {
-            if (fs.existsSync(SESSION_FILE)) fs.unlinkSync(SESSION_FILE);
-            if (fs.existsSync(CREDENTIALS_FILE)) fs.unlinkSync(CREDENTIALS_FILE);
+        if (!userId) {
+            return res.status(400).json({
+                ok: false,
+                message: "Se requiere el parámetro userId"
+            });
         }
+
+        eliminarSesion(userId);
+        cacheNotas.delete(userId);
+        cacheNotasTime.delete(userId);
+        cacheAsistencia.delete(userId);
+        cacheAsistenciaTime.delete(userId);
+        alertasNotas.delete(userId);
 
         res.json({
             ok: true,
@@ -116,19 +115,26 @@ app.post("/auth/logout", (req, res) => {
     } catch (error) {
         res.status(500).json({
             ok: false,
-            message: "Error al cerrar sesión",
-            error: error.message
+            message: "Error al cerrar sesión"
         });
     }
 });
 
 app.get("/login-auto", async (req, res) => {
     try {
-        const userId = req.query.userId || process.env.UPAO_ID;
+        const userId = req.query.userId;
+
+        if (!userId) {
+            return res.status(400).json({
+                ok: false,
+                message: "Se requiere el parámetro userId"
+            });
+        }
+
         await crearSesionAutomatica(userId);
         res.json({ ok: true, message: "Sesión automática creada correctamente" });
     } catch (error) {
-        res.status(500).json({ ok: false, message: "No se pudo crear sesión", error: error.message });
+        res.status(500).json({ ok: false, message: "No se pudo crear sesión" });
     }
 });
 
@@ -137,8 +143,47 @@ app.get("/crear-sesion", async (req, res) => {
         await crearSesionManual();
         res.json({ ok: true, message: "Sesión manual creada correctamente" });
     } catch (error) {
-        res.status(500).json({ ok: false, message: "No se pudo crear sesión manual", error: error.message });
+        res.status(500).json({ ok: false, message: "No se pudo crear sesión manual" });
     }
+});
+
+/* =========================
+   PERIODOS DISPONIBLES
+========================= */
+app.get("/notas/periodos", async (req, res) => {
+    const userId = req.query.userId;
+
+    if (!userId) {
+        return res.status(400).json({
+            ok: false,
+            message: "Se requiere el parámetro userId"
+        });
+    }
+
+    if (!hasSession(userId)) {
+        return res.status(401).json({
+            ok: false,
+            code: "UNAUTHORIZED",
+            message: "No hay una sesión activa para este usuario"
+        });
+    }
+
+    // Lista de períodos disponibles.
+    // TODO: Cuando se necesite extraer dinámicamente del portal UPAO,
+    // implementar un scraper que lea el selector de términos de la página de notas.
+    // Por ahora se retorna una lista razonable con el período actual primero.
+    const periodos = [
+        { codigo: "202610", nombre: "2026 — I (Actual)" },
+        { codigo: "202520", nombre: "2025 — II" },
+        { codigo: "202510", nombre: "2025 — I" },
+        { codigo: "202420", nombre: "2024 — II" },
+        { codigo: "202410", nombre: "2024 — I" }
+    ];
+
+    res.json({
+        ok: true,
+        data: periodos
+    });
 });
 
 /* =========================
@@ -146,6 +191,7 @@ app.get("/crear-sesion", async (req, res) => {
 ========================= */
 app.get("/notas", async (req, res) => {
     const userId = req.query.userId;
+    const termCode = req.query.termCode || null; // Opcional: período específico
 
     if (!userId) {
         return res.status(400).json({
@@ -156,46 +202,49 @@ app.get("/notas", async (req, res) => {
 
     try {
         const force = req.query.force === "true";
+        // La clave del cache incluye el termCode para aislar períodos
+        const cacheKey = termCode ? `${userId}:${termCode}` : userId;
 
-        if (!force && cacheNotas.has(userId)) {
+        if (!force && cacheNotas.has(cacheKey)) {
             return res.json({
                 ok: true,
                 cached: true,
-                updatedAt: cacheNotasTime.get(userId),
+                updatedAt: cacheNotasTime.get(cacheKey),
                 alertas: getAlertas(userId),
-                data: cacheNotas.get(userId)
+                data: cacheNotas.get(cacheKey)
             });
         }
 
-        if (actualizandoNotas.get(userId) && cacheNotas.has(userId)) {
+        if (actualizandoNotas.get(cacheKey) && cacheNotas.has(cacheKey)) {
             return res.json({
                 ok: true,
                 cached: true,
                 updating: true,
-                updatedAt: cacheNotasTime.get(userId),
+                updatedAt: cacheNotasTime.get(cacheKey),
                 alertas: getAlertas(userId),
-                data: cacheNotas.get(userId)
+                data: cacheNotas.get(cacheKey)
             });
         }
 
-        const data = await actualizarNotas(userId);
+        const data = await actualizarNotas(userId, termCode);
 
         res.json({
             ok: true,
             cached: false,
-            updatedAt: cacheNotasTime.get(userId),
+            termCode: termCode || "202610",
+            updatedAt: cacheNotasTime.get(cacheKey),
             alertas: getAlertas(userId),
             data
         });
 
     } catch (error) {
-        actualizandoNotas.delete(userId);
+        const cacheKey = termCode ? `${userId}:${termCode}` : userId;
+        actualizandoNotas.delete(cacheKey);
         const isAuthError = error.message.includes("UNAUTHORIZED");
         res.status(isAuthError ? 401 : 500).json({
             ok: false,
             code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
-            message: isAuthError ? "No hay una sesión activa de UPAO para este usuario" : "Error al obtener notas",
-            error: error.message
+            message: isAuthError ? "No hay una sesión activa de UPAO para este usuario" : "Error al obtener notas"
         });
     }
 });
@@ -269,7 +318,6 @@ app.get("/asistencia", async (req, res) => {
             ok: false,
             code: isAuthError ? "UNAUTHORIZED" : "SERVER_ERROR",
             message: isAuthError ? "No hay una sesión activa de UPAO" : "Error al obtener asistencia",
-            error: error.message,
             cached: cacheAsistencia.has(userId),
             updatedAt: cacheAsistenciaTime.get(userId),
             data: cacheAsistencia.get(userId) || []
@@ -306,15 +354,17 @@ app.post("/notas-alertas/visto", (req, res) => {
 /* =========================
    FUNCIONES
 ========================= */
-async function actualizarNotas(userId) {
-    if (actualizandoNotas.get(userId)) return cacheNotas.get(userId) || [];
+async function actualizarNotas(userId, termCode = null) {
+    const cacheKey = termCode ? `${userId}:${termCode}` : userId;
+    if (actualizandoNotas.get(cacheKey)) return cacheNotas.get(cacheKey) || [];
 
-    actualizandoNotas.set(userId, true);
+    actualizandoNotas.set(cacheKey, true);
 
-    console.log(`🔄 Actualizando notas desde UPAO para ${userId}...`);
+    const periodoLog = termCode || "202610 (actual)";
+    console.log(`🔄 Actualizando notas de ${userId} para período ${periodoLog}...`);
 
-    const notasAnteriores = cacheNotas.get(userId) || null;
-    const notasNuevas = await getNotas(userId);
+    const notasAnteriores = cacheNotas.get(cacheKey) || null;
+    const notasNuevas = await getNotas(userId, termCode);
 
     if (notasAnteriores) {
         const cambios = detectarCambiosNotas(notasAnteriores, notasNuevas);
@@ -328,11 +378,11 @@ async function actualizarNotas(userId) {
         }
     }
 
-    cacheNotas.set(userId, notasNuevas);
-    cacheNotasTime.set(userId, new Date().toISOString());
-    actualizandoNotas.set(userId, false);
+    cacheNotas.set(cacheKey, notasNuevas);
+    cacheNotasTime.set(cacheKey, new Date().toISOString());
+    actualizandoNotas.set(cacheKey, false);
 
-    console.log(`✅ Notas actualizadas en cache para ${userId}`);
+    console.log(`✅ Notas actualizadas en cache para ${userId} (${periodoLog})`);
 
     return notasNuevas;
 }
