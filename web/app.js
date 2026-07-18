@@ -1,3 +1,43 @@
+// Theme management
+function initTheme() {
+  const saved = localStorage.getItem('agendapx-theme') || 'system';
+  applyTheme(saved);
+  updateThemeButtons(saved);
+}
+
+function applyTheme(mode) {
+  if (mode === 'system') {
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', mode);
+  }
+}
+
+function setTheme(mode) {
+  localStorage.setItem('agendapx-theme', mode);
+  applyTheme(mode);
+  updateThemeButtons(mode);
+}
+
+function updateThemeButtons(active) {
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeValue === active);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => setTheme(btn.dataset.themeValue));
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (localStorage.getItem('agendapx-theme') === 'system') {
+      applyTheme('system');
+    }
+  });
+  initTheme();
+});
+
 const API = window.location.protocol.startsWith("http")
     ? window.location.origin
     : "http://localhost:3000";
