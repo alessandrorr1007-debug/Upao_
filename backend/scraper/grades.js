@@ -8,90 +8,94 @@ const {
 
 // Período por defecto (coincide con URL_NOTAS hardcodeada como fallback)
 const TERMCODE_ACTUAL = "202610";
+const TERMCODE_REGEX = /^\d{6}$/;
 
 function buildNotasUrl(termCode) {
-    const code = termCode || TERMCODE_ACTUAL;
+    const code = (termCode && TERMCODE_REGEX.test(termCode)) ? termCode : TERMCODE_ACTUAL;
     return `https://ssb.upao.edu.pe/StudentSelfService/ssb/studentGrades?termCode=${code}`;
 }
 
 async function getNotas(userId, termCode = null) {
     const urlNotas = buildNotasUrl(termCode);
-    console.log(`📊 Abriendo notas... URL: ${urlNotas}`);
+    console.log(`Abriendo notas... URL: ${urlNotas}`);
 
     let browser = await chromium.launch({ headless: true });
-    let context = await crearContextoConSesion(browser, userId);
-    let page = await context.newPage();
 
-    await page.goto(urlNotas, { waitUntil: "networkidle" });
-
-    if (!(await verificarSesion(page))) {
-        console.log("⚠️ Sesión expirada. Reintentando login automático...");
-        await browser.close();
-
-        await crearSesionAutomatica(userId);
-
-        browser = await chromium.launch({ headless: true });
-        context = await crearContextoConSesion(browser, userId);
-        page = await context.newPage();
+    try {
+        let context = await crearContextoConSesion(browser, userId);
+        let page = await context.newPage();
 
         await page.goto(urlNotas, { waitUntil: "networkidle" });
-    }
 
-    await page.waitForSelector("#table1 tbody tr", { timeout: 20000 });
+        if (!(await verificarSesion(page))) {
+            console.log("Sesión expirada. Reintentando login automático...");
+            await browser.close();
 
-    const cursos = await obtenerCursos(page);
-    console.log("📦 Cursos encontrados:", cursos.length);
+            await crearSesionAutomatica(userId);
 
-    const resultado = [];
+            browser = await chromium.launch({ headless: true });
+            context = await crearContextoConSesion(browser, userId);
+            page = await context.newPage();
 
-    for (let i = 0; i < cursos.length; i++) {
-        const curso = cursos[i];
-
-        const item = {
-            codigo: curso.codigo,
-            course: curso.nombre,
-            nrc: curso.nrc,
-            creditos: curso.creditos,
-            periodo: curso.periodo,
-            ep1: crearComponenteVacio("EP1"),
-            parcial: crearComponenteVacio("Parcial"),
-            ep2: crearComponenteVacio("EP2"),
-            final: crearComponenteVacio("Final"),
-            componentesRaw: [],
-            raw: curso.raw
-        };
-
-        try {
-            await abrirComponentesPorFila(page, i);
-            await expandirSubcomponentes(page);
-
-            const componentes = await extraerComponentes(page);
-
-            item.componentesRaw = componentes;
-
-            const estructura = organizarComponentes(componentes);
-
-            item.ep1 = estructura.ep1;
-            item.parcial = estructura.parcial;
-            item.ep2 = estructura.ep2;
-            item.final = estructura.final;
-
-        } catch (error) {
-            console.log("❌ Error en curso:", curso.codigo, error.message);
+            await page.goto(urlNotas, { waitUntil: "networkidle" });
         }
 
-        resultado.push(item);
-
-        // Volver a la página de notas del período correcto entre cada curso
-        await page.goto(urlNotas, { waitUntil: "networkidle" });
         await page.waitForSelector("#table1 tbody tr", { timeout: 20000 });
+
+        const cursos = await obtenerCursos(page);
+        console.log("Cursos encontrados:", cursos.length);
+
+        const resultado = [];
+
+        for (let i = 0; i < cursos.length; i++) {
+            const curso = cursos[i];
+
+            const item = {
+                codigo: curso.codigo,
+                course: curso.nombre,
+                nrc: curso.nrc,
+                creditos: curso.creditos,
+                periodo: curso.periodo,
+                ep1: crearComponenteVacio("EP1"),
+                parcial: crearComponenteVacio("Parcial"),
+                ep2: crearComponenteVacio("EP2"),
+                final: crearComponenteVacio("Final"),
+                componentesRaw: [],
+                raw: curso.raw
+            };
+
+            try {
+                await abrirComponentesPorFila(page, i);
+                await expandirSubcomponentes(page);
+
+                const componentes = await extraerComponentes(page);
+
+                item.componentesRaw = componentes;
+
+                const estructura = organizarComponentes(componentes);
+
+                item.ep1 = estructura.ep1;
+                item.parcial = estructura.parcial;
+                item.ep2 = estructura.ep2;
+                item.final = estructura.final;
+
+            } catch (error) {
+                console.log("Error en curso:", curso.codigo, error.message);
+            }
+
+            resultado.push(item);
+
+            // Volver a la página de notas del período correcto entre cada curso
+            await page.goto(urlNotas, { waitUntil: "networkidle" });
+            await page.waitForSelector("#table1 tbody tr", { timeout: 20000 });
+        }
+
+        console.log("Notas procesadas:", resultado.length);
+
+        return resultado;
+    } finally {
+        await browser.close();
     }
-
-    await browser.close();
-
-    console.log("✅ Notas procesadas:", resultado.length);
-
-    return resultado;
 }
 
 async function obtenerCursos(page) {
